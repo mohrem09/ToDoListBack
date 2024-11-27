@@ -1,0 +1,20 @@
+# Node.js modules
+node_modules/
+
+# Angular-specific files
+.angular/
+
+# IDEs and editors
+.vscode/
+
+# Build outputs
+dist/
+build/
+
+# Logs and environment
+*.log
+*.env
+
+# Miscellaneous
+.DS_Store
+Thumbs.db
