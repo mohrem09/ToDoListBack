@@ -120,43 +120,57 @@ app.get('/profile', authenticateToken, (req, res) => {
   res.json({ message: `Bienvenue, utilisateur ID : ${req.user.id}` });
 });
 
-// Routes pour les tâches
-app.get('/tasks', (req, res) => {
-    const sql = 'SELECT * FROM tasks';
-    db.query(sql, (err, results) => {
-        if (err) throw err;
-        res.json(results);
-    });
+app.get('/tasks', authenticateToken, (req, res) => {
+  const sql = 'SELECT * FROM tasks WHERE user_id = ?';
+  db.query(sql, [req.user.id], (err, results) => {
+      if (err) throw err;
+      res.json(results);
+  });
 });
 
-app.post('/tasks', (req, res) => {
-    const { title, description, priority, due_date } = req.body;
-    const sql = 'INSERT INTO tasks (title, description, priority, due_date) VALUES (?, ?, ?, ?)';
-    db.query(sql, [title, description, priority, due_date], (err, result) => {
-        if (err) throw err;
-        res.json({ message: 'Task created', id: result.insertId });
-    });
+
+app.post('/tasks', authenticateToken, (req, res) => {
+  const { title, description, priority, statut } = req.body; // Assurez-vous que 'statut' est reçu ici
+  const sql =
+    'INSERT INTO tasks (title, description, priority, status, user_id) VALUES (?, ?, ?, ?, ?)';
+  db.query(
+    sql,
+    [title, description, priority, statut, req.user.id],
+    (err, result) => {
+      if (err) throw err;
+      res.json({ message: 'Task created', id: result.insertId });
+    }
+  );
 });
 
-app.put('/tasks/:id', (req, res) => {
-    const { id } = req.params;
-    const { title, description, priority, status, due_date } = req.body;
-    const sql = 'UPDATE tasks SET title = ?, description = ?, priority = ?, status = ?, due_date = ? WHERE id = ?';
-    db.query(sql, [title, description, priority, status, due_date, id], (err) => {
-        if (err) throw err;
-        res.json({ message: 'Task updated' });
-    });
+
+
+// Mettre à jour une tâche (uniquement par son propriétaire)
+app.put('/tasks/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { title, description, priority, status } = req.body;
+
+  const sql =
+    'UPDATE tasks SET title = ?, description = ?, priority = ?, status = ? WHERE id = ? AND user_id = ?';
+  db.query(
+    sql,
+    [title, description, priority, status, id, req.user.id],
+    (err) => {
+      if (err) throw err;
+      res.json({ message: 'Tâche mise à jour' });
+    }
+  );
 });
 
-app.delete('/tasks/:id', (req, res) => {
-    const { id } = req.params;
-    const sql = 'DELETE FROM tasks WHERE id = ?';
-    db.query(sql, [id], (err) => {
-        if (err) throw err;
-        res.json({ message: 'Task deleted' });
-    });
+// Supprimer une tâche (uniquement par son propriétaire)
+app.delete('/tasks/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const sql = 'DELETE FROM tasks WHERE id = ? AND user_id = ?';
+  db.query(sql, [id, req.user.id], (err) => {
+      if (err) throw err;
+      res.json({ message: 'Task deleted' });
+  });
 });
-
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
