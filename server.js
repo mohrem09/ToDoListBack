@@ -175,3 +175,76 @@ const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+//session 
+
+app.post('/sessions', authenticateToken, (req, res) => {
+  const { name } = req.body; // Nom de la session
+  const accessKey = Math.random().toString(36).substring(2, 12); // Générer une clé aléatoire
+  const sql = 'INSERT INTO sessions (name, access_key, creator_id) VALUES (?, ?, ?)';
+
+  db.query(sql, [name, accessKey, req.user.id], (err, result) => {
+      if (err) throw err;
+      res.json({ id: result.insertId, name, accessKey });
+  });
+});
+
+
+app.get('/sessions', authenticateToken, (req, res) => {
+  const sql = 'SELECT * FROM sessions WHERE creator_id = ? OR access_key IN (SELECT access_key FROM session_users WHERE user_id = ?)';
+  db.query(sql, [req.user.id, req.user.id], (err, results) => {
+      if (err) throw err;
+      res.json(results); // Les sessions avec leurs clés d'accès
+  });
+});
+
+
+
+const sessionUsersTable = `
+    CREATE TABLE IF NOT EXISTS session_users (
+        session_id INT NOT NULL,
+        user_id INT NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES sessions(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        PRIMARY KEY (session_id, user_id)
+    )
+`;
+db.query(sessionUsersTable, (err) => {
+    if (err) throw err;
+});
+
+app.post('/sessions/join', authenticateToken, (req, res) => {
+    const { accessKey } = req.body;
+    const findSessionSql = 'SELECT id FROM sessions WHERE access_key = ?';
+    db.query(findSessionSql, [accessKey], (err, results) => {
+        if (err) throw err;
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Session introuvable' });
+        }
+
+        const sessionId = results[0].id;
+        const insertSql = 'INSERT IGNORE INTO session_users (session_id, user_id) VALUES (?, ?)';
+        db.query(insertSql, [sessionId, req.user.id], (err) => {
+            if (err) throw err;
+            res.json({ message: 'Rejoint avec succès', sessionId });
+        });
+    });
+});
+app.get('/tasks/:sessionId', authenticateToken, (req, res) => {
+  const { sessionId } = req.params;
+  const sql = 'SELECT * FROM tasks WHERE session_id = ?';
+  db.query(sql, [sessionId], (err, results) => {
+      if (err) throw err;
+      res.json(results);
+  });
+});
+
+app.post('/tasks', authenticateToken, (req, res) => {
+  const { title, description, priority, statut, sessionId } = req.body;
+  const sql = 'INSERT INTO tasks (title, description, priority, status, user_id, session_id) VALUES (?, ?, ?, ?, ?, ?)';
+  db.query(sql, [title, description, priority, statut, req.user.id, sessionId], (err, result) => {
+      if (err) throw err;
+      res.json({ message: 'Task created', id: result.insertId });
+  });
+});
